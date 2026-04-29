@@ -7,8 +7,35 @@ create table if not exists public.users (
 
 create table if not exists public.exercises (
   id uuid primary key default gen_random_uuid(),
-  name text not null unique,
-  body_part text not null
+  user_id uuid references public.users (id) on delete cascade,
+  name text not null,
+  body_part text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.exercises
+  add column if not exists user_id uuid references public.users (id) on delete cascade,
+  add column if not exists created_at timestamptz not null default now();
+
+alter table public.exercises
+  drop constraint if exists exercises_name_key;
+
+create unique index if not exists exercises_user_name_idx
+  on public.exercises (user_id, name);
+
+create table if not exists public.workout_plans (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  name text not null,
+  body_parts text[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.workout_plan_exercises (
+  id uuid primary key default gen_random_uuid(),
+  plan_id uuid not null references public.workout_plans (id) on delete cascade,
+  exercise_id uuid not null references public.exercises (id) on delete cascade,
+  position integer not null default 1
 );
 
 create table if not exists public.workouts (
@@ -35,6 +62,8 @@ create table if not exists public.sets (
 create index if not exists workouts_user_id_date_idx on public.workouts (user_id, date desc);
 create index if not exists exercise_logs_workout_id_idx on public.exercise_logs (workout_id);
 create index if not exists sets_exercise_log_id_idx on public.sets (exercise_log_id);
+create index if not exists workout_plans_user_id_idx on public.workout_plans (user_id, created_at desc);
+create index if not exists workout_plan_exercises_plan_id_idx on public.workout_plan_exercises (plan_id, position);
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -58,6 +87,8 @@ for each row execute function public.handle_new_user();
 
 alter table public.users enable row level security;
 alter table public.exercises enable row level security;
+alter table public.workout_plans enable row level security;
+alter table public.workout_plan_exercises enable row level security;
 alter table public.workouts enable row level security;
 alter table public.exercise_logs enable row level security;
 alter table public.sets enable row level security;
@@ -81,7 +112,59 @@ create policy "Authenticated users can view exercises"
 on public.exercises
 for select
 to authenticated
-using (true);
+using (user_id is null or auth.uid() = user_id);
+
+drop policy if exists "Users can insert own exercises" on public.exercises;
+create policy "Users can insert own exercises"
+on public.exercises
+for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own exercises" on public.exercises;
+create policy "Users can update own exercises"
+on public.exercises
+for update
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete own exercises" on public.exercises;
+create policy "Users can delete own exercises"
+on public.exercises
+for delete
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "Users can manage own workout plans" on public.workout_plans;
+create policy "Users can manage own workout plans"
+on public.workout_plans
+for all
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "Users can manage own workout plan exercises" on public.workout_plan_exercises;
+create policy "Users can manage own workout plan exercises"
+on public.workout_plan_exercises
+for all
+to authenticated
+using (
+  exists (
+    select 1
+    from public.workout_plans
+    where workout_plans.id = workout_plan_exercises.plan_id
+      and workout_plans.user_id = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.workout_plans
+    where workout_plans.id = workout_plan_exercises.plan_id
+      and workout_plans.user_id = auth.uid()
+  )
+);
 
 drop policy if exists "Users can manage own workouts" on public.workouts;
 create policy "Users can manage own workouts"
@@ -136,16 +219,6 @@ with check (
       and workouts.user_id = auth.uid()
   )
 );
-
-insert into public.exercises (name, body_part)
-values
-  ('Bench Press', 'chest'),
-  ('Squat', 'legs'),
-  ('Deadlift', 'back'),
-  ('Shoulder Press', 'shoulders'),
-  ('Bicep Curl', 'biceps'),
-  ('Tricep Pushdown', 'triceps')
-on conflict (name) do nothing;
 
 create or replace function public.create_workout_with_sets(
   p_body_parts text[],

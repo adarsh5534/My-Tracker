@@ -6,7 +6,9 @@ LiftLog is a workout tracker MVP built with Next.js App Router, TypeScript, Tail
 
 - Email/password authentication with protected routes
 - Dashboard with last workout summary and next-workout recommendation
+- Workout plans page for building Push, Pull, Legs, or custom templates
 - New workout flow with body-part selection, exercise selection, and set logging
+- User-created exercises attached to workout plans instead of a fixed SQL seed list
 - Last-session preload plus quick actions for `Repeat last set`, `+2.5kg`, and `+1 rep`
 - Workout history with expandable exercise detail
 - Exercise progress cards showing PRs and improvement vs previous session

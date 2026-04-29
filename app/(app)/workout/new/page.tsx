@@ -1,12 +1,17 @@
 import { WorkoutBuilder } from "@/components/workout-builder";
 import { requireUser } from "@/lib/auth";
-import { getExerciseCatalog, getLastPerformanceMap } from "@/lib/workouts";
+import {
+  getExerciseCatalog,
+  getLastPerformanceMap,
+  getWorkoutPlans,
+} from "@/lib/workouts";
 
 export default async function NewWorkoutPage() {
   const user = await requireUser();
-  const [exercises, lastPerformanceMap] = await Promise.all([
+  const [exercises, lastPerformanceMap, workoutPlans] = await Promise.all([
     getExerciseCatalog(),
     getLastPerformanceMap(user.id),
+    getWorkoutPlans(user.id),
   ]);
 
   return (
@@ -23,7 +28,11 @@ export default async function NewWorkoutPage() {
         </p>
       </section>
 
-      <WorkoutBuilder exercises={exercises} lastPerformanceMap={lastPerformanceMap} />
+      <WorkoutBuilder
+        exercises={exercises}
+        lastPerformanceMap={lastPerformanceMap}
+        workoutPlans={workoutPlans}
+      />
     </div>
   );
 }

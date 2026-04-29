@@ -2,6 +2,7 @@ export type Exercise = {
   bodyPart: string;
   id: string;
   name: string;
+  userId?: string | null;
 };
 
 export type LoggedSet = {
@@ -68,3 +69,28 @@ export type WorkoutPayload = Array<{
     weight: number;
   }>;
 }>;
+
+export type WorkoutPlanExercise = {
+  bodyPart: string;
+  exerciseId: string;
+  id: string;
+  name: string;
+  position: number;
+};
+
+export type WorkoutPlan = {
+  bodyParts: string[];
+  createdAt: string;
+  exercises: WorkoutPlanExercise[];
+  id: string;
+  name: string;
+};
+
+export type WorkoutPlanDraft = {
+  bodyParts: string[];
+  exercises: Array<{
+    bodyPart: string;
+    name: string;
+  }>;
+  name: string;
+};

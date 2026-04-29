@@ -1,18 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
 
 import { saveWorkoutAction } from "@/app/actions/workouts";
 import { BODY_PART_OPTIONS } from "@/lib/constants";
 import { formatCompactDate } from "@/lib/format";
-import { INITIAL_FORM_STATE, cn } from "@/lib/utils";
-import { type Exercise, type ExerciseLastPerformanceMap, type WorkoutPayload } from "@/types";
+import { INITIAL_FORM_STATE, cn, formatBodyPartList } from "@/lib/utils";
+import {
+  type Exercise,
+  type ExerciseLastPerformanceMap,
+  type WorkoutPayload,
+  type WorkoutPlan,
+} from "@/types";
 
 import { SubmitButton } from "./submit-button";
 
 type WorkoutBuilderProps = {
   exercises: Exercise[];
   lastPerformanceMap: ExerciseLastPerformanceMap;
+  workoutPlans: WorkoutPlan[];
 };
 
 type DraftSet = {
@@ -37,8 +44,8 @@ function createEmptySet(): DraftSet {
 
 function createDraftExercise(exerciseId = ""): DraftExercise {
   return {
-    id: crypto.randomUUID(),
     exerciseId,
+    id: crypto.randomUUID(),
     sets: [createEmptySet()],
   };
 }
@@ -50,6 +57,7 @@ function toWeightString(weight: number): string {
 export function WorkoutBuilder({
   exercises,
   lastPerformanceMap,
+  workoutPlans,
 }: WorkoutBuilderProps) {
   const [state, formAction] = useActionState(saveWorkoutAction, INITIAL_FORM_STATE);
   const [selectedBodyParts, setSelectedBodyParts] = useState<string[]>([]);
@@ -66,6 +74,16 @@ export function WorkoutBuilder({
       ),
     [draftExercises],
   );
+
+  const filteredExercises = useMemo(() => {
+    if (selectedBodyParts.length === 0) {
+      return exercises;
+    }
+
+    return exercises.filter((exercise) =>
+      selectedBodyParts.includes(exercise.bodyPart),
+    );
+  }, [exercises, selectedBodyParts]);
 
   const serialisedPayload: WorkoutPayload = draftExercises
     .filter((exercise) => exercise.exerciseId)
@@ -86,6 +104,30 @@ export function WorkoutBuilder({
       current.includes(bodyPart)
         ? current.filter((value) => value !== bodyPart)
         : [...current, bodyPart],
+    );
+  };
+
+  const applyWorkoutPlan = (plan: WorkoutPlan) => {
+    setSelectedBodyParts(plan.bodyParts);
+    setDraftExercises(
+      plan.exercises.length > 0
+        ? plan.exercises.map((exercise) => {
+            const lastPerformance = lastPerformanceMap[exercise.exerciseId];
+
+            return {
+              exerciseId: exercise.exerciseId,
+              id: crypto.randomUUID(),
+              sets:
+                lastPerformance?.sets.length
+                  ? lastPerformance.sets.map((set) => ({
+                      id: crypto.randomUUID(),
+                      reps: `${set.reps}`,
+                      weight: toWeightString(set.weight),
+                    }))
+                  : [createEmptySet()],
+            };
+          })
+        : [createDraftExercise()],
     );
   };
 
@@ -149,7 +191,10 @@ export function WorkoutBuilder({
     );
   };
 
-  const addSet = (draftExerciseId: string, nextSet?: { reps: number; weight: number }) => {
+  const addSet = (
+    draftExerciseId: string,
+    nextSet?: { reps: number; weight: number },
+  ) => {
     setDraftExercises((current) =>
       current.map((exercise) => {
         if (exercise.id !== draftExerciseId) {
@@ -245,6 +290,50 @@ export function WorkoutBuilder({
       />
 
       <section className="rounded-[1.75rem] border border-line bg-surface p-5 shadow-sm backdrop-blur sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
+              Start from a plan
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Load a saved Push, Pull, Legs, or custom plan to prefill this workout.
+            </p>
+          </div>
+          <Link
+            href="/plans"
+            className="text-sm font-medium text-accent transition hover:text-accent-strong"
+          >
+            Manage plans
+          </Link>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-3">
+          {workoutPlans.length > 0 ? (
+            workoutPlans.map((plan) => (
+              <button
+                key={plan.id}
+                type="button"
+                onClick={() => applyWorkoutPlan(plan)}
+                className="rounded-[1.5rem] border border-line bg-white/80 p-4 text-left transition hover:border-accent"
+              >
+                <p className="text-base font-semibold text-foreground">{plan.name}</p>
+                <p className="mt-1 text-sm text-muted">
+                  {formatBodyPartList(plan.bodyParts)}
+                </p>
+                <p className="mt-3 text-sm text-foreground">
+                  {plan.exercises.map((exercise) => exercise.name).join(", ")}
+                </p>
+              </button>
+            ))
+          ) : (
+            <div className="rounded-[1.5rem] border border-dashed border-line bg-white/60 p-4 text-sm text-muted lg:col-span-3">
+              No plans yet. Create one on the Plans page and it will appear here.
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-[1.75rem] border border-line bg-surface p-5 shadow-sm backdrop-blur sm:p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold tracking-tight text-foreground">
@@ -282,7 +371,7 @@ export function WorkoutBuilder({
 
       <section className="space-y-4">
         {draftExercises.map((draftExercise, exerciseIndex) => {
-          const availableExercises = exercises.filter((exercise) => {
+          const availableExercises = filteredExercises.filter((exercise) => {
             return (
               exercise.id === draftExercise.exerciseId ||
               !selectedExerciseIds.has(exercise.id)
@@ -309,13 +398,22 @@ export function WorkoutBuilder({
                     }
                     className="min-w-[220px] rounded-2xl border border-line bg-white px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent"
                   >
-                    <option value="">Select exercise</option>
+                    <option value="">
+                      {selectedBodyParts.length > 0
+                        ? "Select exercise from chosen body parts"
+                        : "Select exercise"}
+                    </option>
                     {availableExercises.map((exercise) => (
                       <option key={exercise.id} value={exercise.id}>
-                        {exercise.name} · {exercise.bodyPart}
+                        {exercise.name} - {exercise.bodyPart}
                       </option>
                     ))}
                   </select>
+                  {availableExercises.length === 0 ? (
+                    <p className="text-sm text-muted">
+                      No exercises match this selection yet. Add them in Plans.
+                    </p>
+                  ) : null}
                 </div>
 
                 <button
@@ -335,9 +433,9 @@ export function WorkoutBuilder({
                         Last session
                       </p>
                       <p className="mt-1 text-sm text-muted">
-                        {formatCompactDate(lastPerformance.workoutDate)} ·{" "}
+                        {formatCompactDate(lastPerformance.workoutDate)} -{" "}
                         {lastPerformance.sets
-                          .map((set) => `${set.weight}kg × ${set.reps}`)
+                          .map((set) => `${set.weight}kg x ${set.reps}`)
                           .join(", ")}
                       </p>
                     </div>

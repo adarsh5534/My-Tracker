@@ -5,6 +5,7 @@ import {
   type ExerciseProgress,
   type ExerciseSession,
   type LoggedSet,
+  type WorkoutPlan,
   type WorkoutRecord,
 } from "@/types";
 
@@ -87,7 +88,7 @@ export async function getExerciseCatalog(): Promise<Exercise[]> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("exercises")
-    .select("id,name,body_part")
+    .select("id,name,body_part,user_id")
     .order("body_part", { ascending: true })
     .order("name", { ascending: true });
 
@@ -99,6 +100,58 @@ export async function getExerciseCatalog(): Promise<Exercise[]> {
     bodyPart: exercise.body_part,
     id: exercise.id,
     name: exercise.name,
+    userId: exercise.user_id,
+  }));
+}
+
+export async function getWorkoutPlans(userId: string): Promise<WorkoutPlan[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("workout_plans")
+    .select(
+      `
+        id,
+        name,
+        body_parts,
+        created_at,
+        workout_plan_exercises (
+          id,
+          position,
+          exercise:exercises (
+            id,
+            name,
+            body_part
+          )
+        )
+      `,
+    )
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((plan) => ({
+    bodyParts: plan.body_parts ?? [],
+    createdAt: plan.created_at,
+    exercises: (plan.workout_plan_exercises ?? [])
+      .map((item) => {
+        const rawExercise = Array.isArray(item.exercise)
+          ? item.exercise[0]
+          : item.exercise;
+
+        return {
+          bodyPart: rawExercise?.body_part ?? "unknown",
+          exerciseId: rawExercise?.id ?? "",
+          id: item.id,
+          name: rawExercise?.name ?? "Unknown exercise",
+          position: item.position ?? 0,
+        };
+      })
+      .sort((first, second) => first.position - second.position),
+    id: plan.id,
+    name: plan.name,
   }));
 }
 
