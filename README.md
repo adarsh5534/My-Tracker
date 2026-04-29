@@ -2,6 +2,8 @@
 
 LiftLog is a workout tracker MVP built with Next.js App Router, TypeScript, Tailwind CSS, and Supabase Auth/PostgreSQL.
 
+The repo also includes a Capacitor Android wrapper for the quickest APK path around a deployed LiftLog web app.
+
 ## Features
 
 - Email/password authentication with protected routes
@@ -26,6 +28,7 @@ npm install
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+CAPACITOR_SERVER_URL=https://your-deployed-liftlog-url.com
 ```
 
 3. In Supabase SQL Editor, run the schema in [supabase/schema.sql](/C:/Users/adarsh.ipe/Desktop/my-tracker/supabase/schema.sql).
@@ -37,6 +40,42 @@ npm run dev
 ```
 
 5. Open [http://localhost:3000](http://localhost:3000).
+
+## Android wrapper
+
+This project is configured for the quickest Android path: Capacitor loads your deployed LiftLog URL inside the app shell.
+
+1. Set `CAPACITOR_SERVER_URL` in `.env.local` to your deployed app URL.
+2. Sync the Android project:
+
+```bash
+npm run cap:sync
+```
+
+3. Open Android Studio:
+
+```bash
+npm run cap:open:android
+```
+
+4. Build an APK from Android Studio.
+
+Notes:
+
+- This wrapper expects a live HTTPS deployment of the Next.js app.
+- The fallback shell shown when the remote app is unavailable lives in [capacitor-shell](/C:/Users/adarsh.ipe/Desktop/my-tracker/capacitor-shell).
+- Branding assets currently come from [public](/C:/Users/adarsh.ipe/Desktop/my-tracker/public).
+
+## GitHub Actions APK build
+
+If your local Android Studio or Gradle setup is failing, this repo also includes a GitHub Actions workflow that builds the debug APK in the cloud.
+
+1. Push this project to GitHub.
+2. In your GitHub repository, open `Settings > Secrets and variables > Actions > Variables`.
+3. Add a repository variable named `CAPACITOR_SERVER_URL`.
+4. Set its value to your deployed LiftLog URL, for example `https://your-app.vercel.app`.
+5. Run the `Build Android APK` workflow from the `Actions` tab, or push to `main`.
+6. Download the `liftlog-debug-apk` artifact after the workflow finishes.
 
 ## Project structure
 
